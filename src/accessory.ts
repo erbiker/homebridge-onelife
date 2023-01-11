@@ -39,51 +39,97 @@ let hap: HAP;
  * Initializer function called when the plugin is loaded.
  */
 export = (api: API) => {
-  hap = api.hap;
-  api.registerAccessory('ExampleSwitch', ExampleSwitch);
+  api.registerAccessory('OneLifeXPlugin', OneLifeXAccessory);
 };
 
-class ExampleSwitch implements AccessoryPlugin {
+class OneLifeXAccessory implements AccessoryPlugin {
   private readonly log: Logging;
   private readonly name: string;
-  private switchOn = false;
+  private readonly api: API;
+  private airPurifierActive = false;
+  private airPurifierMode = false;
 
-  private readonly switchService: Service;
+  private readonly airPurifierService: Service;
   private readonly informationService: Service;
 
   constructor(log: Logging, config: AccessoryConfig, api: API) {
     this.log = log;
     this.name = config.name;
+    this.api = api;
 
-    this.switchService = new hap.Service.Switch(this.name);
-    this.switchService
-      .getCharacteristic(hap.Characteristic.On)
+    this.airPurifierService = new hap.Service.AirPurifier(this.name);
+    this.airPurifierService
+      .getCharacteristic(hap.Characteristic.Active)
       .on(
         CharacteristicEventTypes.GET,
         (callback: CharacteristicGetCallback) => {
           log.info(
-            'Current state of the switch was returned: ' +
-              (this.switchOn ? 'ON' : 'OFF'),
+            'Current status of the air purifier was returned: ' +
+              (this.airPurifierActive ? 'ACTIVE' : 'INACTIVE'),
           );
-          callback(undefined, this.switchOn);
+          callback(undefined, this.airPurifierActive);
         },
       )
       .on(
         CharacteristicEventTypes.SET,
         (value: CharacteristicValue, callback: CharacteristicSetCallback) => {
-          this.switchOn = value as boolean;
+          this.airPurifierActive = value as boolean;
           log.info(
-            'Switch state was set to: ' + (this.switchOn ? 'ON' : 'OFF'),
+            'Air purifier status was set to: ' +
+              (this.airPurifierActive ? 'ACTIVE' : 'INACTIVE'),
+          );
+          callback();
+        },
+      );
+
+    this.airPurifierService
+      .getCharacteristic(hap.Characteristic.CurrentAirPurifierState)
+      .on(
+        CharacteristicEventTypes.GET,
+        (callback: CharacteristicGetCallback) => {
+          log.info('Current state of the air purifier was returned: ');
+          // here we make an api call to the device to get it's current status, then return it in the callback
+          callback(
+            undefined,
+            true // current status of the device (there is also an IDLE state)
+              ? hap.Characteristic.CurrentAirPurifierState.PURIFYING_AIR
+              : hap.Characteristic.CurrentAirPurifierState.INACTIVE,
+          );
+        },
+      );
+
+    this.airPurifierService
+      .getCharacteristic(hap.Characteristic.TargetAirPurifierState)
+      .on(
+        CharacteristicEventTypes.GET,
+        (callback: CharacteristicGetCallback) => {
+          log.info('Current state of the air purifier was returned: ');
+          // here we make an api call to the device to get it's current status, then return it in the callback
+          callback(
+            undefined,
+            this.airPurifierMode // current status of the device
+              ? hap.Characteristic.TargetAirPurifierState.MANUAL
+              : hap.Characteristic.TargetAirPurifierState.AUTO,
+          );
+        },
+      )
+      .on(
+        CharacteristicEventTypes.SET,
+        (value: CharacteristicValue, callback: CharacteristicSetCallback) => {
+          this.airPurifierMode = value as boolean;
+          log.info(
+            'Air purifier status was set to: ' +
+              (this.airPurifierActive ? 'AUTO' : 'MANUAL'),
           );
           callback();
         },
       );
 
     this.informationService = new hap.Service.AccessoryInformation()
-      .setCharacteristic(hap.Characteristic.Manufacturer, 'Custom Manufacturer')
-      .setCharacteristic(hap.Characteristic.Model, 'Custom Model');
+      .setCharacteristic(hap.Characteristic.Manufacturer, 'OneLife')
+      .setCharacteristic(hap.Characteristic.Model, 'OneLife X Air Purifier');
 
-    log.info('Switch finished initializing!');
+    log.info('Air purifier finished initializing!');
   }
 
   /*
@@ -99,6 +145,6 @@ class ExampleSwitch implements AccessoryPlugin {
    * It should return all services which should be added to the accessory.
    */
   getServices(): Service[] {
-    return [this.informationService, this.switchService];
+    return [this.informationService, this.airPurifierService];
   }
 }
